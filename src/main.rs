@@ -1,19 +1,32 @@
+mod env;
 mod handler;
 mod post;
-use crate::handler::*;
-use actix_web::{http, server, App};
+mod store;
 
-const ADDR: &'static str = "127.0.0.1:8080";
+use crate::env::ADDR;
+use crate::handler::*;
+use crate::store::PostStore;
+use actix_web::{http, server, App};
+use dotenv::dotenv;
+use std::cell::RefCell;
 
 fn main() {
-    println!("server running at {}", ADDR);
+    dotenv().ok();
+    env_logger::init();
 
     server::new(|| {
-        App::new()
-            .route("/post/{id}", http::Method::GET, get_post)
-            .route("/post", http::Method::POST, save_post)
+        App::with_state(AppState {
+            store_cell: RefCell::new(PostStore::new()),
+        })
+        .resource("/post/{key}", |r| r.method(http::Method::GET).f(get_post))
+        .resource("/post", |r| {
+            r.method(http::Method::POST)
+                .with_config(save_post, |((cfg, _),)| {
+                    cfg.limit(20 * 1024);
+                })
+        })
     })
-    .bind(ADDR)
+    .bind(&ADDR.clone())
     .unwrap()
     .run()
 }
