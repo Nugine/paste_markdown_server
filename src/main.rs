@@ -8,15 +8,17 @@ use crate::handler::*;
 use crate::store::PostStore;
 use actix_web::{http, server, App};
 use dotenv::dotenv;
-use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 
 fn main() {
     dotenv().ok();
     env_logger::init();
 
-    server::new(|| {
+    let store = Arc::new(Mutex::new(PostStore::new()));
+
+    server::new(move || {
         App::with_state(AppState {
-            store_cell: RefCell::new(PostStore::new()),
+            store: store.clone(),
         })
         .resource("/post/{key}", |r| r.method(http::Method::GET).f(get_post))
         .resource("/post", |r| {

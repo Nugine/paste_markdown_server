@@ -1,7 +1,6 @@
 use crate::env::{MAXSIZE, TIMEOUT};
 use crate::post::Post;
 use chrono::Local;
-use log::info;
 use std::collections::BTreeMap;
 
 pub struct PostStore {
@@ -35,8 +34,11 @@ impl PostStore {
         self.last_post_time = time;
         self.posts_map.insert(time, post_json);
 
-        let delta = self.size() - MAXSIZE.clone();
-        if delta > 0 {
+        let size = self.size();
+        let maxsize = MAXSIZE.clone();
+
+        if size > maxsize {
+            let delta = size - maxsize;
             let mut tot: usize = 0;
             let mut keys = Vec::new();
             for (&t, s) in &self.posts_map {
@@ -67,8 +69,6 @@ impl PostStore {
         for t in &keys {
             self.total_size -= self.posts_map.remove(t).unwrap().len();
         }
-
-        info!("store size = {}", self.size());
     }
 
     pub fn size(&self) -> usize {

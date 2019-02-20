@@ -5,10 +5,10 @@ use actix_web::error::{ErrorBadRequest, ErrorNotFound};
 use actix_web::{Error, HttpRequest, HttpResponse, Json, Result};
 use failure::Fail;
 use log::info;
-use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 
 pub struct AppState {
-    pub store_cell: RefCell<PostStore>,
+    pub store: Arc<Mutex<PostStore>>,
 }
 
 #[derive(Fail, Debug)]
@@ -41,7 +41,8 @@ pub fn get_post(req: &HttpRequest<AppState>) -> HttpResponse {
         Some(t) => t,
     };
 
-    let mut store = req.state().store_cell.borrow_mut();
+    let store_clone = req.state().store.clone();
+    let mut store = store_clone.lock().unwrap();
     store.clean();
 
     let post_str = match store.find_by_time(time) {
@@ -49,18 +50,19 @@ pub fn get_post(req: &HttpRequest<AppState>) -> HttpResponse {
         Some(s) => s,
     };
 
-    info!("time = {}", time);
+    info!("GET  time = {}, store_size = {}", time, store.size());
     HttpResponse::Ok().body(post_str)
 }
 
 pub fn save_post((item, req): (Json<Post>, HttpRequest<AppState>)) -> Result<Json<UploadResp>> {
-    let mut store = req.state().store_cell.borrow_mut();
+    let store_clone = req.state().store.clone();
+    let mut store = store_clone.lock().unwrap();
     store.clean();
 
     match store.save(item.0) {
         None => Err(Error::from(ErrorNotFound(HandlerError::NotFound))),
         Some(t) => {
-            info!("time = {}", t);
+            info!("SAVE time = {}, store_size = {}", t, store.size());
             Ok(Json(UploadResp {
                 location: sc.encrypt_to_url_component(&format!("{}", t)),
             }))
