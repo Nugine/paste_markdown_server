@@ -29,11 +29,14 @@ impl HandlerError {
 }
 
 pub fn get_post(req: &HttpRequest<AppState>) -> HttpResponse {
-    let time: i64 = match req
-        .match_info()
-        .query::<String>("key")
+    let key = match req.match_info().query::<String>("key").ok() {
+        None => return HandlerError::to_bad_request(()),
+        Some(t) => t,
+    };
+
+    let time: i64 = match sc
+        .decrypt_url_component(&key)
         .ok()
-        .and_then(|k| sc.decrypt_url_component(&k).ok())
         .and_then(|u| String::from_utf8(u).ok())
         .and_then(|s| s.parse().ok())
     {
@@ -50,7 +53,7 @@ pub fn get_post(req: &HttpRequest<AppState>) -> HttpResponse {
         Some(s) => s,
     };
 
-    info!("GET  time = {}, store_size = {}", time, store.size());
+    info!("GET  key = {}, store_size = {}", key, store.size());
     HttpResponse::Ok().body(post_str)
 }
 
@@ -62,10 +65,9 @@ pub fn save_post((item, req): (Json<Post>, HttpRequest<AppState>)) -> Result<Jso
     match store.save(item.0) {
         None => Err(Error::from(ErrorNotFound(HandlerError::NotFound))),
         Some(t) => {
-            info!("SAVE time = {}, store_size = {}", t, store.size());
-            Ok(Json(UploadResp {
-                location: sc.encrypt_to_url_component(&format!("{}", t)),
-            }))
+            let key = sc.encrypt_to_url_component(&format!("{}", t));
+            info!("SAVE key = {}, store_size = {}", key, store.size());
+            Ok(Json(UploadResp { location: key }))
         }
     }
 }
